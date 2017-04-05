@@ -7,10 +7,11 @@
 	},
 	"dependencies": {
 		"express": "4.13.x",
-		"cfenv": "1.0.x"
+		"cfenv": "1.0.x",
+		"js-crawler": "latest"
 	},
 	"repository": {},
 	"engines": {
 		"node": "4.x"
-	} 
+	}
 }
