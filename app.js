@@ -9,6 +9,13 @@
 /*eslint-disable no-param-reassign, no-else-return*/
 var express = require('express');
 var Crawler = require("js-crawler");
+var cors = require('cors');
+
+//CORS configuration
+var corsOptions = {
+  origin: 'https://easymarket-operation.mybluemix.net',
+  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204 
+}
 
 
 //LINKS
@@ -42,7 +49,7 @@ app.listen(appEnv.port, '0.0.0.0', function() {
   console.log("server starting on " + appEnv.url);
 });
 
-app.use(function(req, res, next) {
+/*app.use(function(req, res, next) {
   //res.header('Access-Control-Allow-Origin', req.get('Origin') || '*');
   res.header('Access-Control-Allow-Origin', 'https://easymarket-operation.mybluemix.net');
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -57,11 +64,11 @@ app.use(function(req, res, next) {
   	//console.log("res is " + res);
   	return next();
   }
-});
+});*/
 
 
 
-app.get("/api/categories", function (request, response) {
+app.get("/api/categories", cors(corsOptions), function (request, response) {
 	console.log("\n\n\n\------------------Start Categories Crawl------------------------\n\n\n");
 	var categories = [];
 	var crawler = new Crawler().configure({ignoreRelative: false, depth: 1});
