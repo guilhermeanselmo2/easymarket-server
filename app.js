@@ -46,6 +46,7 @@ var regexExtraProducts = /class=\"boxProduct showcase-item((\n|.|\s)*?<!)/g;
 var regexExtraProductsName = /title=\"((\n|\s)*[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\n|\s)*)+/g;
 var regexExtraPrice = /class="value">[0-9]+\,[0-9][0-9]/;
 var regexProductLink = /href=\".+?\"/;
+var regexProductId = /\"productId\".+?>/
 
 //REGEX UTILS
 var clearWhiteSpace = /[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\s+[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+)*/;
@@ -73,61 +74,44 @@ app.listen(appEnv.port, '0.0.0.0', function() {
   console.log("server starting on " + appEnv.url);
 });
 
-/*app.use(function(req, res, next) {
-  //res.header('Access-Control-Allow-Origin', req.get('Origin') || '*');
-  res.header('Access-Control-Allow-Origin', 'https://easymarket-operation.mybluemix.net');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
-  res.header('Access-Control-Expose-Headers', 'Content-Length');
-  res.header('Access-Control-Allow-Headers', 'Accept, Authorization, Content-Type, X-Requested-With, Range');
-  if (req.method === 'OPTIONS') {
-    console.log("\n\n\n\------------------Send Option response------------------------\n\n\n");
-    return res.send(200);
-  } else {
-    console.log("\n\n\n\------------------Send normal response------------------------\n\n\n");
-    //console.log("res is " + res);
-    return next();
-  }
-});*/
-
 /*globals crawledCategoryArray */
 var crawledCategoryArray = [];
 var crawledSubCategoryArray = [];
+var crawledProductArray = [];
 
 var supermarketId = 1;
 
 var categories = [];
 
 app.get("/api/categories", cors(corsOptions), function (request, response) {
-  console.log("\n\n\n\------------------Start Categories Crawl------------------------\n\n\n");
+    console.log("\n\n\n\------------------Start Categories Crawl------------------------\n\n\n");
   
     crawledCategoryArray = [];
     crawledSubCategoryArray = [];
-  var crawler = new Crawler().configure({ignoreRelative: false, depth: 1});
-  crawler.crawl({
-    url: extraUrl,
-    success: function(page) {
-        categories = getCategories(page);
-      },
-    failure: function(page) {
-        console.log(page.status);
-    },
-    finished: function(crawledUrls) {
-        for(var i = 0; i<categories.length; i++){
-            crawledCategoryArray.push(false);
-          }
+    crawledProductArray = [];
+    var crawler = new Crawler().configure({ignoreRelative: false, depth: 1});
+    crawler.crawl({
+        url: extraUrl,
+        success: function(page) {
+            categories = getCategories(page);
+          },
+        failure: function(page) {
+            console.log(page.status);
+        },
+        finished: function(crawledUrls) {
+            for(var i = 0; i<categories.length; i++){
+                crawledCategoryArray.push(false);
+              }
 
-        
-        for(var i = 0; i<categories.length; i++){
-            console.log("\nCategoria " + i + ": " + categories[i].name);
-            console.log("Link is: " + categories[i].link);
-            crawlCategory(i, response);
+            
+            for(var i = 0; i<categories.length; i++){
+                crawlCategory(i, response);
+
+            }
+            console.log("\n\n\n\------------------END CATEGORIES------------------------\n\n\n");
 
         }
-        console.log("\n\n\n\------------------END CATEGORIES------------------------\n\n\n");
-
-    }
-  });
+      });
 
   
 });
@@ -175,7 +159,6 @@ function getSubCategories(page){
 //Utils
 function crawlCategory(index, response){
     var crawlerCategory = new Crawler().configure({ignoreRelative: false, depth: 1});
-    //console.log("Start category " + categories[index].name + " with index: " + index.toString());
     crawlerCategory.crawl({
         url: categories[index].link,
         success: function(page) {
@@ -211,7 +194,6 @@ function crawlCategory(index, response){
 }
 
 function crawlSubCategory(subcategoryLink, indexCategory, indexSubcategory, crawledSubCategoryArrayIndex, products, response){
-    //console.log("Crawl subcategory " + categories[indexCategory].subCategories[indexSubcategory].name);
     var crawler = new Crawler().configure({ignoreRelative: false, depth: 1});
     var lastPage = true;
     crawler.crawl({
@@ -225,7 +207,6 @@ function crawlSubCategory(subcategoryLink, indexCategory, indexSubcategory, craw
                 var product = {};
                 productsHtml[i] = translateHtml(productsHtml[i]);
                 product.name = getProductName(productsHtml[i], regexExtraProductsName);
-                //console.log("Product name is " + product.name);
               
                 if(product.name){
                     product.link = getLink(productsHtml[i], regexProductLink);
@@ -250,26 +231,62 @@ function crawlSubCategory(subcategoryLink, indexCategory, indexSubcategory, craw
 
       
 
-    //console.log(page.content);
-    },
-    failure: function(page) {
-      console.log(page.status);
-    },
-    finished: function(crawledUrls) {
-        if(lastPage){
-            crawledSubCategoryArray[crawledSubCategoryArrayIndex] = true;
-            categories[indexCategory].subCategories[indexSubcategory].products = products;
-            //console.log("Finished subcategory " + categories[indexCategory].subCategories[indexSubcategory].name);
-            //console.log("crawledSubCategoryArray: " + crawledSubCategoryArray);
-            if(crawledSubCategoryArray.indexOf(false) === -1){
-                console.log("\n\n\n\------------------END SUBCATEGORIES------------------------\n\n\n");
-                response.json(categories);
+        },
+        failure: function(page) {
+          console.log(page.status);
+        },
+        finished: function(crawledUrls) {
+            if(lastPage){
+                crawledSubCategoryArray[crawledSubCategoryArrayIndex] = true;
+                categories[indexCategory].subCategories[indexSubcategory].products = products;
+                if(crawledSubCategoryArray.indexOf(false) === -1){
+                    console.log("\n\n\n\------------------END SUBCATEGORIES------------------------\n\n\n");
+                    var crawledProductArrayIndex = 0;
+                    for(var productIndexCategory = 0; productIndexCategory < categories.length; productIndexCategory++){
+                        for(var productIndexSubcategory = 0; productIndexSubcategory < categories[productIndexCategory].subCategories.length; productIndexSubcategory++){
+                            for(var indexProduct = 0; indexProduct < categories[productIndexCategory].subCategories[productIndexSubcategory].products.length; indexProduct++){
+                                crawledProductArray.push(false);
+                            }
+                        }
+                    }
+                    for(var productIndexCategory = 0; productIndexCategory < categories.length; productIndexCategory++){
+                        for(var productIndexSubcategory = 0; productIndexSubcategory < categories[productIndexCategory].subCategories.length; productIndexSubcategory++){
+                            for(var indexProduct = 0; indexProduct < categories[productIndexCategory].subCategories[productIndexSubcategory].products.length; indexProduct++){
+                                crawlProduct(categories[productIndexCategory].subCategories[productIndexSubcategory].products[indexProduct].link, productIndexCategory, productIndexSubcategory, indexProduct, crawledProductArrayIndex, response);
+                                crawledProductArrayIndex++;
+                            }
+                        }
+                    }
+                    //response.json(categories);
+                }
             }
+            /*for(var i = 0; i<products.length; i++){
+                //crawlProduct(products[i]);
+            }*/
+                
         }
-        /*for(var i = 0; i<products.length; i++){
-            //crawlProduct(products[i]);
-        }*/
-            
+    });
+                    
+}
+
+function crawlProduct(productLink, crawlProductIndexCategory, crawlProductIndexSubcategory, crawlProductIndexProduct, crawledProductArrayIndex, response){
+    var crawler = new Crawler().configure({ignoreRelative: false, depth: 1});
+    crawler.crawl({
+        url: productLink,
+        success: function(page) {
+            console.log("Subcategory: " + categories[crawlProductIndexCategory].subCategories[crawlProductIndexSubcategory].name + " at index " + crawlProductIndexSubcategory);
+            categories[crawlProductIndexCategory].subCategories[crawlProductIndexSubcategory].products[crawlProductIndexProduct].id = page.content.match(regexProductId);      
+        },
+        failure: function(page) {
+          console.log(page.status);
+        },
+        finished: function(crawledUrls) {
+            crawledProductArray[crawledProductArrayIndex] = true;
+            //console.log(crawledProductArray);
+            if(crawledProductArray.indexOf(false) === -1){
+                console.log("\n\n\n\------------------END PRODUCTS------------------------\n\n\n");
+                response.json(categories);
+            }                
         }
     });
                     
