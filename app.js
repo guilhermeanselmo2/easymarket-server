@@ -1,3 +1,4 @@
+'use strict';
 /*eslint-env node*/
 
 //------------------------------------------------------------------------------
@@ -25,7 +26,7 @@ var corsOptions = {
             callback(new Error(origin + ' is not allowed by CORS'));
         }
     }
-}
+};
 
 
 //LINKS
@@ -46,7 +47,7 @@ var regexExtraProducts = /class=\"boxProduct showcase-item((\n|.|\s)*?<!)/g;
 var regexExtraProductsName = /title=\"((\n|\s)*[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\n|\s)*)+/g;
 var regexExtraPrice = /class="value">[0-9]+\,[0-9][0-9]/;
 var regexProductLink = /href=\".+?\"/;
-var regexProductId = /\"productId\".+?>/
+var regexProductId = /\"productId\".+?>/;
 
 //REGEX UTILS
 var clearWhiteSpace = /[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\s+[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+)*/;
@@ -98,13 +99,13 @@ app.get("/api/categories", cors(corsOptions), function (request, response) {
         failure: function(page) {
             console.log(page.status);
         },
-        finished: function(crawledUrls) {
+        finished: function() {
             for(var i = 0; i<categories.length; i++){
                 crawledCategoryArray.push(false);
               }
 
             
-            for(var i = 0; i<categories.length; i++){
+            for(i = 0; i<categories.length; i++){
                 crawlCategory(i, response);
 
             }
@@ -145,7 +146,7 @@ function getSubCategories(page){
           
         if(subcategory.name){
             subcategory.link = getLink(subcategoriesHTML[i], regexSubCategoryLink);
-            subcategory.link = extraBaseLink + subcategory.link;              
+            //subcategory.link = subcategory.link;              
               
             if(subcategory.link){
                 subcategories.push(subcategory);
@@ -171,9 +172,10 @@ function crawlCategory(index, response){
         failure: function(page) {
             console.log(page.status);
         },
-        finished: function(crawledUrls) {
+        finished: function() {
             crawledCategoryArray[index] = true;
             if(crawledCategoryArray.indexOf(false) === -1){
+                crawledCategoryArray = [];
                 console.log("Finished Crawling Categories");
                 for(var indexCategory = 0; indexCategory < categories.length; indexCategory++){
                     for(var indexSubcategory = 0; indexSubcategory < categories[indexCategory].subCategories.length; indexSubcategory++)
@@ -181,10 +183,10 @@ function crawlCategory(index, response){
                 }
               
                 var crawledSubCategoryArrayIndex = 0;
-                for(var indexCategory = 0; indexCategory < categories.length; indexCategory++){
-                    for(var indexSubcategory = 0; indexSubcategory < categories[indexCategory].subCategories.length; indexSubcategory++){
+                for(indexCategory = 0; indexCategory < categories.length; indexCategory++){
+                    for(indexSubcategory = 0; indexSubcategory < categories[indexCategory].subCategories.length; indexSubcategory++){
                         categories[indexCategory].subCategories[indexSubcategory].products = [];
-                        crawlSubCategory(categories[indexCategory].subCategories[indexSubcategory].link, indexCategory, indexSubcategory, crawledSubCategoryArrayIndex, [], response);
+                        crawlSubCategory(extraBaseLink + categories[indexCategory].subCategories[indexSubcategory].link, indexCategory, indexSubcategory, crawledSubCategoryArrayIndex, [], response);
                         crawledSubCategoryArrayIndex++;
                     }
                 }
@@ -209,11 +211,11 @@ function crawlSubCategory(subcategoryLink, indexCategory, indexSubcategory, craw
                 product.name = getProductName(productsHtml[i], regexExtraProductsName);
               
                 if(product.name){
-                    product.link = getLink(productsHtml[i], regexProductLink);
+                    product.link = getLink(productsHtml[i], regexProductLink).split(extraBaseLink)[1];
                     if(product.link){
                         product.price = getPrice(productsHtml[i], regexExtraPrice);
-                        product.subcategory = categories[indexCategory].subCategories[indexSubcategory].name + "_" + categories[indexCategory].subCategories[indexSubcategory].count;
-                        product.lastPage = lastPage;
+                        product.id = 0;
+                        product.scatg = categories[indexCategory].subCategories[indexSubcategory].name + "_" + categories[indexCategory].subCategories[indexSubcategory].count;
                         products.push(product);
                     }
                 }
@@ -222,7 +224,7 @@ function crawlSubCategory(subcategoryLink, indexCategory, indexSubcategory, craw
             
             if(nextButtonHtmlArray){
                 var nextButtonHtml = translateHtml(nextButtonHtmlArray[0]);
-                var subcategoryBaseLink = (categories[indexCategory].subCategories[indexSubcategory].link.split("?"))[0];
+                var subcategoryBaseLink = extraBaseLink + (categories[indexCategory].subCategories[indexSubcategory].link.split("?"))[0];
                 var nextButtonLink = getLink(nextButtonHtml, regexGenericLink);
                 nextButtonLink = subcategoryBaseLink + nextButtonLink;
                 lastPage = false;
@@ -235,28 +237,18 @@ function crawlSubCategory(subcategoryLink, indexCategory, indexSubcategory, craw
         failure: function(page) {
           console.log(page.status);
         },
-        finished: function(crawledUrls) {
+        finished: function() {
             if(lastPage){
                 crawledSubCategoryArray[crawledSubCategoryArrayIndex] = true;
                 categories[indexCategory].subCategories[indexSubcategory].products = products;
                 if(crawledSubCategoryArray.indexOf(false) === -1){
+                    crawledSubCategoryArray = [];
                     console.log("\n\n\n\------------------END SUBCATEGORIES------------------------\n\n\n");
-                    var crawledProductArrayIndex = 0;
+                    
                     for(var productIndexCategory = 0; productIndexCategory < categories.length; productIndexCategory++){
-                        for(var productIndexSubcategory = 0; productIndexSubcategory < categories[productIndexCategory].subCategories.length; productIndexSubcategory++){
-                            for(var indexProduct = 0; indexProduct < categories[productIndexCategory].subCategories[productIndexSubcategory].products.length; indexProduct++){
-                                crawledProductArray.push(false);
-                            }
-                        }
+                        
                     }
-                    for(var productIndexCategory = 0; productIndexCategory < categories.length; productIndexCategory++){
-                        for(var productIndexSubcategory = 0; productIndexSubcategory < categories[productIndexCategory].subCategories.length; productIndexSubcategory++){
-                            for(var indexProduct = 0; indexProduct < categories[productIndexCategory].subCategories[productIndexSubcategory].products.length; indexProduct++){
-                                crawlProduct(categories[productIndexCategory].subCategories[productIndexSubcategory].products[indexProduct].link, productIndexCategory, productIndexSubcategory, indexProduct, crawledProductArrayIndex, response);
-                                crawledProductArrayIndex++;
-                            }
-                        }
-                    }
+                    callCrawlProduct(0, 0, response);
                     //response.json(categories);
                 }
             }
@@ -274,22 +266,46 @@ function crawlProduct(productLink, crawlProductIndexCategory, crawlProductIndexS
     crawler.crawl({
         url: productLink,
         success: function(page) {
-            console.log("Subcategory: " + categories[crawlProductIndexCategory].subCategories[crawlProductIndexSubcategory].name + " at index " + crawlProductIndexSubcategory);
+            //console.log("Subcategory: " + categories[crawlProductIndexCategory].subCategories[crawlProductIndexSubcategory].name + " at index " + crawlProductIndexSubcategory);
             categories[crawlProductIndexCategory].subCategories[crawlProductIndexSubcategory].products[crawlProductIndexProduct].id = page.content.match(regexProductId);      
         },
         failure: function(page) {
           console.log(page.status);
         },
-        finished: function(crawledUrls) {
+        finished: function() {
             crawledProductArray[crawledProductArrayIndex] = true;
-            //console.log(crawledProductArray);
             if(crawledProductArray.indexOf(false) === -1){
-                console.log("\n\n\n\------------------END PRODUCTS------------------------\n\n\n");
-                response.json(categories);
-            }                
+                crawlProductIndexSubcategory++;
+                if(crawlProductIndexSubcategory >= categories[crawlProductIndexCategory].subCategories.length){
+                    crawlProductIndexCategory++;
+                    crawlProductIndexSubcategory = 0;
+                    if(crawlProductIndexCategory < categories.length){
+                        callCrawlProduct(crawlProductIndexCategory, crawlProductIndexSubcategory, response);
+                    } else {
+                        console.log("\n\n\n\------------------END PRODUCTS------------------------\n\n\n");
+                        response.json(categories);
+                    }
+                } else {
+                    callCrawlProduct(crawlProductIndexCategory, crawlProductIndexSubcategory, response); 
+                }
+            }            
         }
     });
                     
+}
+
+function callCrawlProduct(productIndexCategory, productIndexSubcategory, response){
+    var crawledProductArrayIndex = 0;
+    crawledProductArray = [];
+    //console.log(categories[productIndexCategory].name + "->" + categories[productIndexCategory].subCategories[productIndexSubcategory].name + ": " + categories[productIndexCategory].subCategories[productIndexSubcategory].products.length);
+    for(var indexProduct = 0; indexProduct < categories[productIndexCategory].subCategories[productIndexSubcategory].products.length; indexProduct++){
+        crawledProductArray.push(false);
+    }
+    
+    for(indexProduct = 0; indexProduct < categories[productIndexCategory].subCategories[productIndexSubcategory].products.length; indexProduct++){
+        crawlProduct(categories[productIndexCategory].subCategories[productIndexSubcategory].products[indexProduct].link, productIndexCategory, productIndexSubcategory, indexProduct, crawledProductArrayIndex, response);
+        crawledProductArrayIndex++;
+    }
 }
 
 function translateHtml(htmlText){
