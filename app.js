@@ -31,28 +31,31 @@ var corsOptions = {
 
 //LINKS
 var extraUrl = "http://www.deliveryextra.com.br/?utm_source=Extras&utm_medium=Menu&utm_campaign=Alimentos&nid=200803";
+var paoDeAcucarUrl = "http://www.paodeacucar.com/";
 
 //REGEX
-var regexCategories = /\/figure>(\s|\n)*[a-zA-Z\u00C0-\u00FB]+(\s|\n)*/;
-var regexCategoryLink = /href=\".*delivery.*\"+?/;
+var regexCategories = {"extra":/\/figure>(\s|\n)*[a-zA-Z\u00C0-\u00FB]+(\s|\n)*/,
+                       "paoDeAcucar":/<span((\n|.)*?\<)/};
+var regexCategoryLink = {"extra":/href=\".*delivery.*\"+?/};
 
 var regexSubCategories = /<a class=\"facetItemLabel aside((\n|.)*?\/a>)/g;
 var regexSubCategoryName = /\">[a-zA-Z\u00C0-\u00FB]+(\s*[a-zA-Z\u00C0-\u00FB]+)*/g;
 var regexSubCategoryLink = /href=\".+?\"+?/;
 var regexNextButton = /class="button.+icon--angle-right".+?href=.+?\">/;
 
-var regexNav = /<li class=\"nav-item((\n|.)*?\/a>)/g;
+var regexNav = {"extra":/<li class=\"nav-item((\n|.)*?\/a>)/g,
+                "paoDeAcucar":/<li class="item_menu((\n|.)*?\/a>)/g};
 
 var regexExtraProducts = /class=\"boxProduct showcase-item((\n|.|\s)*?<!)/g;
 var regexExtraProductsName = /title=\"((\n|\s)*[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\n|\s)*)+/g;
 var regexExtraPrice = /class="value">[0-9]+\,[0-9][0-9]/;
 var regexProductLink = /href=\".+?\"/;
-var regexProductId = /\"productId\".+?>/;
 var productLinkTagString = "/produto/";
 
 //REGEX UTILS
 var clearWhiteSpace = /[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\s+[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+)*/;
 var regexGenericLink = /href=\".+?\"/;
+var regexAlphaNumeric = /(\s|\n)*[a-zA-Z\u00C0-\u00FB]+(\s|\n)*/;
 
 //LINKS
 var extraBaseLink = "http://www.deliveryextra.com.br";
@@ -95,7 +98,7 @@ app.get("/api/categories", cors(corsOptions), function (request, response) {
     crawler.crawl({
         url: extraUrl,
         success: function(page) {
-            categories = getCategories(page);
+            categories = getCategories(page, regexNav["extra"], regexCategories["extra"], regexCategoryLink["extra"]);
           },
         failure: function(page) {
             console.log(page.status);
@@ -118,7 +121,66 @@ app.get("/api/categories", cors(corsOptions), function (request, response) {
   
 });
 
-function getCategories(page){
+app.get("/api/pao-de-acucar", cors(corsOptions), function (request, response) {
+    console.log("\n\n\n\------------------Start Categories Crawl------------------------\n\n\n");
+    supermarketId = 2;
+    crawledCategoryArray = [];
+    crawledSubCategoryArray = [];
+    crawledProductArray = [];
+    console.log("Crawling pão de açúcar");
+    var crawler = new Crawler().configure({ignoreRelative: false, depth: 1});
+    crawler.crawl({
+        url: extraUrl,
+        success: function(page) {
+            console.log("Got anwser");
+            categories = getCategoriesPaoDeAcucar(page, regexNav["paoDeAcucar"], regexCategories["paoDeAcucar"], regexCategoryLink["paoDeAcucar"]);
+          },
+        failure: function(page) {
+            console.log(page.status);
+        },
+        finished: function() {
+            for(var i = 0; i<categories.length; i++){
+                crawledCategoryArray.push(false);
+              }
+              response.json(categories);
+
+            
+            /*for(i = 0; i<categories.length; i++){
+                crawlCategory(i, response);
+
+            }*/
+            console.log("\n\n\n\------------------END CATEGORIES------------------------\n\n\n");
+
+        }
+      });
+
+  
+});
+
+function getCategoriesPaoDeAcucar(page, regexNav, regexCategories, regexCategoryLink){
+    var categories = [];
+    console.log("page is : " + page);
+    var navTitles = page.content.match(regexNav);
+    console.log("navTitles: " + JSON.stringify(navTitles));
+    for(var i = 0; i<navTitles.length; i++){
+        navTitles[i] = translateHtml(navTitles[i]);
+        console.log("navTitle " + i + ": " + JSON.stringify(navTitles[0]));
+        var category = {};
+        category.name = getCategoryPaoDeAcucar(navTitles[i], regexCategories);
+        if(category.name){
+            category.link = "link";//getLink(navTitles[i], regexCategoryLink);
+            category.supermarketId = supermarketId;
+            if(category.link){
+                categories.push(category);
+            }
+        }
+    }
+    return categories;
+}
+
+
+
+function getCategories(page, regexNav, regexCategories, regexCategoryLink){
     var categories = [];
     var navTitles = page.content.match(regexNav);
 
@@ -293,7 +355,7 @@ function crawlSubCategory(subcategoryLink, indexCategory, indexSubcategory, craw
         }
     });
                     
-}*/
+}
 
 function callCrawlProduct(productIndexCategory, productIndexSubcategory, response){
     var crawledProductArrayIndex = 0;
@@ -307,7 +369,7 @@ function callCrawlProduct(productIndexCategory, productIndexSubcategory, respons
         crawlProduct(extraBaseLink + categories[productIndexCategory].subCategories[productIndexSubcategory].products[indexProduct].link, productIndexCategory, productIndexSubcategory, indexProduct, crawledProductArrayIndex, response);
         crawledProductArrayIndex++;
     }
-}
+}*/
 
 function translateHtml(htmlText){
     htmlText = replaceAll(htmlText, "&acirc;","â");
@@ -364,6 +426,16 @@ function getCategory(htmlText, categoryRegex){
             return category;    
         }
         return null;     
+}
+
+function getCategoryPaoDeAcucar(htmlText, categoryRegex){
+        var categoryTag = htmlText.match(categoryRegex);
+        if(categoryTag){
+            var category = categoryTag[0].match(regexAlphaNumeric);
+            return category[1];    
+        }
+        return null;   
+    
 }
 
 
