@@ -30,8 +30,8 @@ var corsOptions = {
 
 
 //LINKS
-var extraUrl = "http://www.deliveryextra.com.br/?utm_source=Extras&utm_medium=Menu&utm_campaign=Alimentos&nid=200803";
-var paoDeAcucarUrl = "http://www.paodeacucar.com/";
+var supermarketBaseUrl = {"extra":"http://www.deliveryextra.com.br/",
+                          "paoDeAcucar":"http://www.paodeacucar.com/"};
 
 //REGEX
 var regexCategories = {"extra":/\/figure>(\s|\n)*[a-zA-Z\u00C0-\u00FB]+(\s|\n)*/,
@@ -39,7 +39,8 @@ var regexCategories = {"extra":/\/figure>(\s|\n)*[a-zA-Z\u00C0-\u00FB]+(\s|\n)*/
 var regexCategoryLink = {"extra":/href=\".*delivery.*\"+?/,
                          "paoDeAcucar":/href=\".*paodeacucar.*?\"+?/};
 
-var regexSubCategories = /<a class=\"facetItemLabel aside((\n|.)*?\/a>)/g;
+var regexSubCategories = {"extra":/<a class=\"facetItemLabel aside((\n|.)*?\/a>)/g,
+                          "paoDeAcucar":/aside-nav__link[^]*?\/a/g};
 var regexSubCategoryName = /\">[a-zA-Z\u00C0-\u00FB]+(\s*[a-zA-Z\u00C0-\u00FB]+)*/g;
 var regexSubCategoryLink = /href=\".+?\"+?/;
 var regexNextButton = /class="button.+icon--angle-right".+?href=.+?\">/;
@@ -47,11 +48,21 @@ var regexNextButton = /class="button.+icon--angle-right".+?href=.+?\">/;
 var regexNav = {"extra":/<li class=\"nav-item((\n|.)*?\/a>)/g,
                 "paoDeAcucar":/<li class="item_menu([^]*?\/a>)/g};
 
-var regexExtraProducts = /class=\"boxProduct showcase-item((\n|.|\s)*?<!)/g;
-var regexExtraProductsName = /title=\"((\n|\s)*[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\n|\s)*)+/g;
-var regexExtraPrice = /class="value">[0-9]+\,[0-9][0-9]/;
+var regexProducts = {"extra":/class=\"boxProduct showcase-item((\n|.|\s)*?<!)/g,
+                     "paoDeAcucar":/class=\"showcase-item__price((\n|.|\s)*?<\/a)/g};
+var regexProductUnavailable = {"extra":/./g,
+                               "paoDeAcucar":/class=\"showcase-item__info((\n|.|\s)*?<\/a)/g}
+var regexProductsName = {"extra":/title=\"((\n|\s)*[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\n|\s)*)+/g,
+                         "paoDeAcucar":/nome=\"((\n|\s)*[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\n|\s)*)+/g};
+var nameTag = {"extra":"title=\"",
+               "paoDeAcucar":"nome=\""}
+var regexProductsSku = {"extra":/./g,
+                         "paoDeAcucar":/sku="[0-9]+/g};
+var skuTag = {"extra":"",
+               "paoDeAcucar":"sku=\""}               
+var regexPrice = /class="value">[0-9]+\,[0-9][0-9]/;
 var regexProductLink = /href=\".+?\"/;
-var productLinkTagString = "/produto/";
+var productLinkTagString = "produto/";
 
 //REGEX UTILS
 var clearWhiteSpace = /[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\s+[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+)*/;
@@ -97,7 +108,7 @@ app.get("/api/categories", cors(corsOptions), function (request, response) {
     crawledProductArray = [];
     var crawler = new Crawler().configure({ignoreRelative: false, depth: 1});
     crawler.crawl({
-        url: extraUrl,
+        url: supermarketBaseUrl["extra"],
         success: function(page) {
             categories = getCategories(page, regexNav["extra"], regexCategories["extra"], regexCategoryLink["extra"]);
           },
@@ -111,7 +122,7 @@ app.get("/api/categories", cors(corsOptions), function (request, response) {
 
             
             for(i = 0; i<categories.length; i++){
-                crawlCategory(i, response);
+                crawlCategory(i, "extra", response);
 
             }
             console.log("\n\n\n\------------------END CATEGORIES------------------------\n\n\n");
@@ -131,9 +142,8 @@ app.get("/api/pao-de-acucar", cors(corsOptions), function (request, response) {
     console.log("Crawling pão de açúcar");
     var crawler = new Crawler().configure({ignoreRelative: false, depth: 1});
     crawler.crawl({
-        url: paoDeAcucarUrl,
+        url: supermarketBaseUrl["paoDeAcucar"],
         success: function(page) {
-            console.log("Got anwser");
             categories = getCategoriesPaoDeAcucar(page, regexNav["paoDeAcucar"], regexCategories["paoDeAcucar"], regexCategoryLink["paoDeAcucar"]);
           },
         failure: function(page) {
@@ -143,13 +153,11 @@ app.get("/api/pao-de-acucar", cors(corsOptions), function (request, response) {
             for(var i = 0; i<categories.length; i++){
                 crawledCategoryArray.push(false);
               }
-              response.json(categories);
-
             
-            /*for(i = 0; i<categories.length; i++){
-                crawlCategory(i, response);
+            for(i = 0; i<categories.length; i++){
+                crawlCategory(i, "paoDeAcucar", response);
 
-            }*/
+            }
             console.log("\n\n\n\------------------END CATEGORIES------------------------\n\n\n");
 
         }
@@ -165,7 +173,6 @@ function getCategoriesPaoDeAcucar(page, regexNav, regexCategories, regexCategory
     var navTitles = page.content.match(regexNav);[]
     for(var i = 0; i<navTitles.length; i++){
         navTitles[i] = translateHtml(navTitles[i]);
-        console.log("\n navTitle " + i + ": " + JSON.stringify(navTitles[i]));
         var category = {};
         category.name = getCategoryPaoDeAcucar(navTitles[i], regexCategories);
         if(category.name){
@@ -200,36 +207,15 @@ function getCategories(page, regexNav, regexCategories, regexCategoryLink){
     return categories;
 }
 
-function getSubCategories(page){
-    var subcategories = [];
-    var subcategoriesHTML = page.content.match(regexSubCategories);
-    for(var i = 0; i<subcategoriesHTML.length; i++){
-        var subcategory = {};
-        subcategoriesHTML[i] = translateHtml(subcategoriesHTML[i]);
-        subcategory.name = getSubCategoryName(subcategoriesHTML[i], regexSubCategoryName);
-          
-        if(subcategory.name){
-            subcategory.link = getLink(subcategoriesHTML[i], regexSubCategoryLink);
-            //subcategory.link = subcategory.link;              
-              
-            if(subcategory.link){
-                subcategories.push(subcategory);
-            }
-        }
-          
-    }
-    return subcategories;
-  }
-
 //Utils
-function crawlCategory(index, response){
+function crawlCategory(index, supermarket, response){
     var crawlerCategory = new Crawler().configure({ignoreRelative: false, depth: 1});
     crawlerCategory.crawl({
         url: categories[index].link,
         success: function(page) {
             if(categories){
-                categories[index].subCategories = getSubCategories(page);
-                }
+                categories[index].subCategories = getSubCategories(page, regexSubCategories[supermarket]);
+            }
             else
                 console.log("No categories available");
         },
@@ -241,6 +227,7 @@ function crawlCategory(index, response){
             if(crawledCategoryArray.indexOf(false) === -1){
                 crawledCategoryArray = [];
                 console.log("Finished Crawling Categories");
+                //response.json(categories);
                 for(var indexCategory = 0; indexCategory < categories.length; indexCategory++){
                     for(var indexSubcategory = 0; indexSubcategory < categories[indexCategory].subCategories.length; indexSubcategory++)
                         crawledSubCategoryArray.push(false);
@@ -250,7 +237,7 @@ function crawlCategory(index, response){
                 for(indexCategory = 0; indexCategory < categories.length; indexCategory++){
                     for(indexSubcategory = 0; indexSubcategory < categories[indexCategory].subCategories.length; indexSubcategory++){
                         categories[indexCategory].subCategories[indexSubcategory].products = [];
-                        crawlSubCategory(extraBaseLink + categories[indexCategory].subCategories[indexSubcategory].link, indexCategory, indexSubcategory, crawledSubCategoryArrayIndex, [], response);
+                        crawlSubCategory(supermarket, supermarketBaseUrl[supermarket] + categories[indexCategory].subCategories[indexSubcategory].link, indexCategory, indexSubcategory, crawledSubCategoryArrayIndex, [], response);
                         crawledSubCategoryArrayIndex++;
                     }
                 }
@@ -259,48 +246,73 @@ function crawlCategory(index, response){
     });
 }
 
-function crawlSubCategory(subcategoryLink, indexCategory, indexSubcategory, crawledSubCategoryArrayIndex, products, response){
+function getSubCategories(page, regexSubCategories){
+    var subcategories = [];
+    var subcategoriesHTML = page.content.match(regexSubCategories);
+    for(var i = 0; i<subcategoriesHTML.length; i++){
+        var subcategory = {};
+        subcategoriesHTML[i] = translateHtml(subcategoriesHTML[i]);
+        subcategory.name = getSubCategoryName(subcategoriesHTML[i], regexSubCategoryName);
+          
+        if(subcategory.name){
+            subcategory.link = getLink(subcategoriesHTML[i], regexSubCategoryLink);
+              
+            if(subcategory.link){
+                subcategories.push(subcategory);
+            }
+        }
+          
+    }
+    return subcategories;
+  }
+
+function crawlSubCategory(supermarket, subcategoryLink, indexCategory, indexSubcategory, crawledSubCategoryArrayIndex, products, response){
     var crawler = new Crawler().configure({ignoreRelative: false, depth: 1});
     var lastPage = true;
     crawler.crawl({
         url: subcategoryLink,
         success: function(page) {
-
             var nextButtonHtmlArray = page.content.match(regexNextButton);
-            var productsHtml = page.content.match(regexExtraProducts);
-    
-            for(var i = 0; i<productsHtml.length; i++){
-                var product = {};
-                productsHtml[i] = translateHtml(productsHtml[i]);
-                product.name = getProductName(productsHtml[i], regexExtraProductsName);
-              
-                if(product.name){
-                    product.link = getLink(productsHtml[i], regexProductLink).split(extraBaseLink)[1];
-
-                    if(product.link){
-                        product.price = getPrice(productsHtml[i], regexExtraPrice);
-                        product.id = getProductId(product.link, productLinkTagString);
-                        product.subcategories = categories[indexCategory].subCategories[indexSubcategory].name + "_" + categories[indexCategory].subCategories[indexSubcategory].count;
+            var productsHtml = page.content.match(regexProducts[supermarket]);
+            //var unavailableProducts = regexProductUnavailable
+            if(productsHtml) {
+                for(var i = 0; i<productsHtml.length; i++){
+                    var product = {};
+                    productsHtml[i] = translateHtml(productsHtml[i]);
+                    product.name = getProductName(productsHtml[i], regexProductsName[supermarket], nameTag[supermarket]);
+                  
+                    if(product.name){
+                        product.link = getLink(productsHtml[i], regexProductLink).split(supermarketBaseUrl[supermarket])[1];
                         products.push(product);
+                        if(product.link){
+                            product.price = getPrice(productsHtml[i], regexPrice);
+                            if(supermarket === "extra")
+                                product.id = getProductId(product.link, productLinkTagString);
+                            else if(supermarket === "paoDeAcucar"){
+                                product.id = getProductSkuRegex(productsHtml[i], regexProductsSku[supermarket], skuTag[supermarket]);
+                            }
+                            product.subcategories = categories[indexCategory].subCategories[indexSubcategory].name;
+                            products.push(product);
+                        }
                     }
+                  
                 }
-              
             }
             
             if(nextButtonHtmlArray){
                 var nextButtonHtml = translateHtml(nextButtonHtmlArray[0]);
-                var subcategoryBaseLink = extraBaseLink + (categories[indexCategory].subCategories[indexSubcategory].link.split("?"))[0];
+                var subcategoryBaseLink = supermarketBaseUrl[supermarket] + (categories[indexCategory].subCategories[indexSubcategory].link.split("?"))[0];
                 var nextButtonLink = getLink(nextButtonHtml, regexGenericLink);
                 nextButtonLink = subcategoryBaseLink + nextButtonLink;
                 lastPage = false;
-                crawlSubCategory(nextButtonLink, indexCategory, indexSubcategory, crawledSubCategoryArrayIndex, products, response);
+                crawlSubCategory(supermarket, nextButtonLink, indexCategory, indexSubcategory, crawledSubCategoryArrayIndex, products, response);
             }
 
       
 
         },
         failure: function(page) {
-          console.log(page.status);
+          console.log("Error while crawling subcategory: " + categories[indexCategory].subCategories[indexSubcategory].name + "\n Link is " + subcategoryLink + "\nstatus: " + page.status);
         },
         finished: function() {
             if(lastPage){
@@ -308,12 +320,7 @@ function crawlSubCategory(subcategoryLink, indexCategory, indexSubcategory, craw
                 categories[indexCategory].subCategories[indexSubcategory].products = products;
                 if(crawledSubCategoryArray.indexOf(false) === -1){
                     crawledSubCategoryArray = [];
-                    console.log("\n\n\n\------------------END SUBCATEGORIES------------------------\n\n\n");
-                    
-                    /*for(var productIndexCategory = 0; productIndexCategory < categories.length; productIndexCategory++){
-                        
-                    }*/
-                    //callCrawlProduct(0, 0, response);
+                    console.log("\n\n\n\------------------END SUBCATEGORIES------------------------\n\n\n")
                     response.json(categories);
                 }
             }
@@ -322,55 +329,6 @@ function crawlSubCategory(subcategoryLink, indexCategory, indexSubcategory, craw
     });
                     
 }
-
-/*function crawlProduct(productLink, crawlProductIndexCategory, crawlProductIndexSubcategory, crawlProductIndexProduct, crawledProductArrayIndex, response){
-    var crawler = new Crawler().configure({ignoreRelative: false, depth: 1});
-    crawler.crawl({
-        url: productLink,
-        success: function(page) {
-            //console.log("Subcategory: " + categories[crawlProductIndexCategory].subCategories[crawlProductIndexSubcategory].name + " at index " + crawlProductIndexSubcategory);
-            categories[crawlProductIndexCategory].subCategories[crawlProductIndexSubcategory].products[crawlProductIndexProduct].id = page.content.match(regexProductId);
-            console.log("Product id is:" + categories[crawlProductIndexCategory].subCategories[crawlProductIndexSubcategory].products[crawlProductIndexProduct].id + "name is " +categories[crawlProductIndexCategory].subCategories[crawlProductIndexSubcategory].products[crawlProductIndexProduct].name);
-        },
-        failure: function(page) {
-          console.log("Crawl product failed:" + page.status + "\nFor link " + productLink + "\nFor original link " + categories[crawlProductIndexCategory].subCategories[crawlProductIndexSubcategory].products[crawlProductIndexProduct].link2);
-        },
-        finished: function() {
-            crawledProductArray[crawledProductArrayIndex] = true;
-            if(crawledProductArray.indexOf(false) === -1){
-                response.json(categories);
-                crawlProductIndexSubcategory++;
-                if(crawlProductIndexSubcategory >= categories[crawlProductIndexCategory].subCategories.length){
-                    crawlProductIndexCategory++;
-                    crawlProductIndexSubcategory = 0;
-                    if(crawlProductIndexCategory < categories.length){
-                        callCrawlProduct(crawlProductIndexCategory, crawlProductIndexSubcategory, response);
-                    } else {
-                        console.log("\n\n\n\------------------END PRODUCTS------------------------\n\n\n");
-                        response.json(categories);
-                    }
-                } else {
-                    callCrawlProduct(crawlProductIndexCategory, crawlProductIndexSubcategory, response); 
-                }
-            }            
-        }
-    });
-                    
-}
-
-function callCrawlProduct(productIndexCategory, productIndexSubcategory, response){
-    var crawledProductArrayIndex = 0;
-    crawledProductArray = [];
-    //console.log(categories[productIndexCategory].name + "->" + categories[productIndexCategory].subCategories[productIndexSubcategory].name + ": " + categories[productIndexCategory].subCategories[productIndexSubcategory].products.length);
-    for(var indexProduct = 0; indexProduct < categories[productIndexCategory].subCategories[productIndexSubcategory].products.length; indexProduct++){
-        crawledProductArray.push(false);
-    }
-    
-    for(indexProduct = 0; indexProduct < categories[productIndexCategory].subCategories[productIndexSubcategory].products.length; indexProduct++){
-        crawlProduct(extraBaseLink + categories[productIndexCategory].subCategories[productIndexSubcategory].products[indexProduct].link, productIndexCategory, productIndexSubcategory, indexProduct, crawledProductArrayIndex, response);
-        crawledProductArrayIndex++;
-    }
-}*/
 
 function translateHtml(htmlText){
     htmlText = replaceAll(htmlText, "&acirc;","â");
@@ -433,8 +391,6 @@ function getCategoryPaoDeAcucar(htmlText, categoryRegex){
         var categoryTag = htmlText.match(categoryRegex);
         if(categoryTag){
             var category = categoryTag[0].match(regexAlphaNumeric);
-            console.log("Category name is: " + JSON.stringify(category));
-            console.log("Regex is: " + regexAlphaNumeric);
             return category[1];    
         }
         return null;   
@@ -454,7 +410,7 @@ function getLink(htmlText, regexCondition){
 }
 
 function cleanFigureTag(categoryTag, tagName){
-      return categoryTag.substring(tagName.length);
+    return categoryTag.substring(tagName.length);
 }
 
 function getSubCategoryName(htmlText, regexSubCategoryName){
@@ -466,10 +422,10 @@ function getSubCategoryName(htmlText, regexSubCategoryName){
         return null;     
 }
 
-function getProductName(productHtmlText, regexProductName){
+function getProductName(productHtmlText, regexProductName, tag){
     var nameTag = productHtmlText.match(regexProductName);
     if(nameTag){
-        var productName = cleanFigureTag(nameTag[0], "title=\"");
+        var productName = cleanFigureTag(nameTag[0], tag);
         productName = (productName.match(clearWhiteSpace))[0];
         return productName;
     }
@@ -480,8 +436,17 @@ function getProductId(productLink, productLinkTag){
     var idString = productLink.split(productLinkTag)[1];
     idString = idString.split("/");
     var id = parseInt(idString, 10);
-
     return id;
+}
+
+function getProductSkuRegex(productHtmlText, regexProductSku, tag){
+    var skuTag = productHtmlText.match(regexProductSku);
+    if(skuTag){
+        var productSku = cleanFigureTag(skuTag[0], tag);
+        productSku = (productSku.match(clearWhiteSpace))[0];
+        return productSku;
+    }
+    return null;
 }
 
 function getPrice(productHtmlText, regexProductPrice){
