@@ -35,8 +35,9 @@ var paoDeAcucarUrl = "http://www.paodeacucar.com/";
 
 //REGEX
 var regexCategories = {"extra":/\/figure>(\s|\n)*[a-zA-Z\u00C0-\u00FB]+(\s|\n)*/,
-                       "paoDeAcucar":/<span((\n|.)*?\<)/};
-var regexCategoryLink = {"extra":/href=\".*delivery.*\"+?/};
+                       "paoDeAcucar":/<span([^]*?\<)/};
+var regexCategoryLink = {"extra":/href=\".*delivery.*\"+?/,
+                         "paoDeAcucar":/href=\".*paodeacucar.*?\"+?/};
 
 var regexSubCategories = /<a class=\"facetItemLabel aside((\n|.)*?\/a>)/g;
 var regexSubCategoryName = /\">[a-zA-Z\u00C0-\u00FB]+(\s*[a-zA-Z\u00C0-\u00FB]+)*/g;
@@ -44,7 +45,7 @@ var regexSubCategoryLink = /href=\".+?\"+?/;
 var regexNextButton = /class="button.+icon--angle-right".+?href=.+?\">/;
 
 var regexNav = {"extra":/<li class=\"nav-item((\n|.)*?\/a>)/g,
-                "paoDeAcucar":/<li class="item_menu((\n|.)*?\/a>)/g};
+                "paoDeAcucar":/<li class="item_menu([^]*?\/a>)/g};
 
 var regexExtraProducts = /class=\"boxProduct showcase-item((\n|.|\s)*?<!)/g;
 var regexExtraProductsName = /title=\"((\n|\s)*[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\n|\s)*)+/g;
@@ -55,7 +56,7 @@ var productLinkTagString = "/produto/";
 //REGEX UTILS
 var clearWhiteSpace = /[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\s+[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+)*/;
 var regexGenericLink = /href=\".+?\"/;
-var regexAlphaNumeric = /(\s|\n)*[a-zA-Z\u00C0-\u00FB]+(\s|\n)*/;
+var regexAlphaNumeric = /(\s|\n)*[a-zA-Z\u00C0-\u00FB]+(\s|\n)*/g;
 
 //LINKS
 var extraBaseLink = "http://www.deliveryextra.com.br";
@@ -130,7 +131,7 @@ app.get("/api/pao-de-acucar", cors(corsOptions), function (request, response) {
     console.log("Crawling pão de açúcar");
     var crawler = new Crawler().configure({ignoreRelative: false, depth: 1});
     crawler.crawl({
-        url: extraUrl,
+        url: paoDeAcucarUrl,
         success: function(page) {
             console.log("Got anwser");
             categories = getCategoriesPaoDeAcucar(page, regexNav["paoDeAcucar"], regexCategories["paoDeAcucar"], regexCategoryLink["paoDeAcucar"]);
@@ -159,16 +160,16 @@ app.get("/api/pao-de-acucar", cors(corsOptions), function (request, response) {
 
 function getCategoriesPaoDeAcucar(page, regexNav, regexCategories, regexCategoryLink){
     var categories = [];
-    console.log("page is : " + page);
-    var navTitles = page.content.match(regexNav);
-    console.log("navTitles: " + JSON.stringify(navTitles));
+    //console.log("page is : " + page.content);
+    //var regexTest = /<li class="item_menu((\n|.)*?\/a>)/g;
+    var navTitles = page.content.match(regexNav);[]
     for(var i = 0; i<navTitles.length; i++){
         navTitles[i] = translateHtml(navTitles[i]);
-        console.log("navTitle " + i + ": " + JSON.stringify(navTitles[0]));
+        console.log("\n navTitle " + i + ": " + JSON.stringify(navTitles[i]));
         var category = {};
         category.name = getCategoryPaoDeAcucar(navTitles[i], regexCategories);
         if(category.name){
-            category.link = "link";//getLink(navTitles[i], regexCategoryLink);
+            category.link = getLink(navTitles[i], regexCategoryLink);
             category.supermarketId = supermarketId;
             if(category.link){
                 categories.push(category);
@@ -432,6 +433,8 @@ function getCategoryPaoDeAcucar(htmlText, categoryRegex){
         var categoryTag = htmlText.match(categoryRegex);
         if(categoryTag){
             var category = categoryTag[0].match(regexAlphaNumeric);
+            console.log("Category name is: " + JSON.stringify(category));
+            console.log("Regex is: " + regexAlphaNumeric);
             return category[1];    
         }
         return null;   
