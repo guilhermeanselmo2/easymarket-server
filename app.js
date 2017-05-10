@@ -285,11 +285,11 @@ function crawlSubCategory(supermarket, subcategoryLink, indexCategory, indexSubc
                         product.link = getLink(productsHtml[i], regexProductLink).split(supermarketBaseUrl[supermarket])[1];
                         if(product.link){
                             product.price = getPrice(productsHtml[i], regexPrice);
-                            if(supermarket === "extra")
-                                product.id = getProductId(product.link, productLinkTagString);
-                            else if(supermarket === "paoDeAcucar"){
+                            //if(supermarket === "extra")
+                            product.id = getProductId(product.link, productLinkTagString);
+                            /*else if(supermarket === "paoDeAcucar"){
                                 product.id = getProductSkuRegex(productsHtml[i], regexProductsSku[supermarket], skuTag[supermarket]);
-                            }
+                            }*/
                             product.subcategories = categories[indexCategory].subCategories[indexSubcategory].name;
                             products.push(product);
                         }
