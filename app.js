@@ -283,7 +283,6 @@ function crawlSubCategory(supermarket, subcategoryLink, indexCategory, indexSubc
                   
                     if(product.name){
                         product.link = getLink(productsHtml[i], regexProductLink).split(supermarketBaseUrl[supermarket])[1];
-                        products.push(product);
                         if(product.link){
                             product.price = getPrice(productsHtml[i], regexPrice);
                             if(supermarket === "extra")
