@@ -13,6 +13,8 @@
 var express = require('express');
 var Crawler = require("js-crawler");
 var cors = require('cors');
+var https = require('https');
+var request = require("request");
 
 
 //CORS configuration
@@ -31,7 +33,7 @@ var corsOptions = {
 
 //LINKS
 var supermarketBaseUrl = {"extra":"http://www.deliveryextra.com.br/",
-                          "paoDeAcucar":"http://www.paodeacucar.com/"};
+                          "paoDeAcucar":"https://api.gpa.digital/pa/"};
 
 //REGEX
 var regexCategories = {"extra":/\/figure>(\s|\n)*[a-zA-Z\u00C0-\u00FB]+(\s|\n)*/,
@@ -69,6 +71,19 @@ var clearWhiteSpace = /[a-zA-Z\u00C0-\u00FB0-9\-\'\.\+]+(\s+[a-zA-Z\u00C0-\u00FB
 var regexGenericLink = /href=\".+?\"/;
 var regexAlphaNumeric = /(\s|\n)*[a-zA-Z\u00C0-\u00FB]+(\s|\n)*/g;
 
+/****************API*******************/
+//Params
+var listParamGpa = "?storeId=501&qt=36&gt=list";
+var storeId = {"paoDeAcucar":"501"};
+var qt = {"paoDeAcucar":"36"};
+var gt = {"paoDeAcucar":"list"};
+
+//URLS
+var productPath = {"paoDeAcucar":"products/list"};
+var categoriesPath = {"paoDeAcucar":"detail/categories"};
+
+
+
 //LINKS
 var extraBaseLink = "http://www.deliveryextra.com.br";
 
@@ -99,6 +114,7 @@ var crawledProductArray = [];
 var supermarketId = 1;
 
 var categories = [];
+var products = [];
 
 app.get("/api/categories", cors(corsOptions), function (request, response) {
     console.log("\n\n\n\------------------Start Categories Crawl------------------------\n\n\n");
@@ -133,57 +149,86 @@ app.get("/api/categories", cors(corsOptions), function (request, response) {
   
 });
 
-app.get("/api/pao-de-acucar", cors(corsOptions), function (request, response) {
-    console.log("\n\n\n\------------------Start Categories Crawl------------------------\n\n\n");
-    supermarketId = 2;
-    crawledCategoryArray = [];
-    crawledSubCategoryArray = [];
-    crawledProductArray = [];
-    console.log("Crawling pão de açúcar");
-    var crawler = new Crawler().configure({ignoreRelative: false, depth: 1});
-    crawler.crawl({
-        url: supermarketBaseUrl["paoDeAcucar"],
-        success: function(page) {
-            categories = getCategoriesPaoDeAcucar(page, regexNav["paoDeAcucar"], regexCategories["paoDeAcucar"], regexCategoryLink["paoDeAcucar"]);
-          },
-        failure: function(page) {
-            console.log(page.status);
-        },
-        finished: function() {
-            for(var i = 0; i<categories.length; i++){
-                crawledCategoryArray.push(false);
-              }
-            
-            for(i = 0; i<categories.length; i++){
-                crawlCategory(i, "paoDeAcucar", response);
-
+app.get("/api/pao-de-acucar", cors(corsOptions), function (req, serverResponse) {
+    
+    var queryParams = {"storeId":storeId["paoDeAcucar"],
+                        "showSub":"true"};
+    categories = [];
+    products = [];
+    request({url:supermarketBaseUrl["paoDeAcucar"]+categoriesPath["paoDeAcucar"],
+            qs:queryParams,
+            json:true},
+            function (error, response, body) {
+        if (!error && response.statusCode == 200) {
+            for(var categoryIndex = 0; categoryIndex < body.content.length; categoryIndex++){
+                var category = {};
+                category.name = body.content[categoryIndex].name;
+                category.path = body.content[categoryIndex].link;
+                category.subCategories = [];
+                for(var subCategoryIndex = 0; subCategoryIndex < body.content[categoryIndex].subCategory.length; subCategoryIndex++){
+                    var subCategory = {};
+                    subCategory.name = body.content[categoryIndex].subCategory[subCategoryIndex].name;
+                    subCategory.path = body.content[categoryIndex].subCategory[subCategoryIndex].link;
+                    category.subCategories.push(subCategory);
+                }
+                categories.push(category);
             }
-            console.log("\n\n\n\------------------END CATEGORIES------------------------\n\n\n");
-
+            getProductsAPI(0, categories, 0, serverResponse);
+            //serverResponse.json(categories);
+        } else {
+            console.log(body);
         }
-      });
+    });
+
+    //var resp = {};
+    //resp.name = "resposta";
+    //serverResponse.json(resp);
 
   
 });
 
-function getCategoriesPaoDeAcucar(page, regexNav, regexCategories, regexCategoryLink){
-    var categories = [];
-    //console.log("page is : " + page.content);
-    //var regexTest = /<li class="item_menu((\n|.)*?\/a>)/g;
-    var navTitles = page.content.match(regexNav);[]
-    for(var i = 0; i<navTitles.length; i++){
-        navTitles[i] = translateHtml(navTitles[i]);
-        var category = {};
-        category.name = getCategoryPaoDeAcucar(navTitles[i], regexCategories);
-        if(category.name){
-            category.link = getLink(navTitles[i], regexCategoryLink);
-            category.supermarketId = supermarketId;
-            if(category.link){
-                categories.push(category);
+function getProductsAPI(page, categories, categoryIndex, serverResponse){
+
+    /**
+    qt - number of products in the list (max is 36)
+    p  - which page it is
+    **/
+    var queryParams = {"storeId":storeId["paoDeAcucar"],
+                        "qt":qt["paoDeAcucar"],
+                        "gt":gt["paoDeAcucar"],
+                        "p": page};
+    var categoryUrl = supermarketBaseUrl["paoDeAcucar"]+productPath["paoDeAcucar"]+categories[categoryIndex].path;
+    request({url:categoryUrl,
+            qs:queryParams,
+            json:true},
+            function (error, response, body) {
+        if (!error && response.statusCode == 200) {
+            for(var productIndex = 0; productIndex < body.content.products.length; productIndex++) {
+                var product = {};
+                var productDetails = body.content.products[productIndex];
+                product.name = productDetails.name;
+                product.path = productDetails.urlDetails;
+                product.brand = productDetails.brand;
+                product.price = productDetails.currentPrice;
+                product.subCategory = productDetails.shelfList[0].name;
+                product.category = productDetails.shelfList[1].name;
+                product.stock = productDetails.stock;
+                product.type = productDetails.type;
+                product.priceType = productDetails.priceType;
+                products.push(product);
+
             }
+
+            //console.log("is last: " + body.content.last);
+            if(body.content.last === false)
+                getProductsAPI(page+1, categories, categoryIndex, serverResponse);
+            else{
+                serverResponse.json(products);
+            }
+        } else {
+            console.log(body);
         }
-    }
-    return categories;
+    });
 }
 
 
